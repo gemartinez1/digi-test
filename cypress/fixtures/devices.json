@@ -1,0 +1,29 @@
+[
+  {
+    "id": "sensor-001",
+    "name": "Fridge Sensor A",
+    "location": "Kitchen Unit 1",
+    "type": "fridge",
+    "lastSeen": "2026-01-01T12:00:00Z",
+    "lastTemperature": 5,
+    "status": "online"
+  },
+  {
+    "id": "sensor-002",
+    "name": "Warehouse Sensor",
+    "location": "Warehouse Floor B",
+    "type": "warehouse",
+    "lastSeen": "2026-01-01T12:00:00Z",
+    "lastTemperature": 22,
+    "status": "online"
+  },
+  {
+    "id": "sensor-003",
+    "name": "Server Room Monitor",
+    "location": "Data Center Rack 3",
+    "type": "server-room",
+    "lastSeen": "2026-01-01T12:00:00Z",
+    "lastTemperature": 21,
+    "status": "online"
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "normal": {
+    "fridge": {
+      "deviceId": "sensor-001",
+      "temperature": 5,
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "warehouse": {
+      "deviceId": "sensor-002",
+      "temperature": 22,
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "serverRoom": {
+      "deviceId": "sensor-003",
+      "temperature": 20,
+      "timestamp": "2026-01-01T12:00:00Z"
+    }
+  },
+  "breach": {
+    "fridge": {
+      "deviceId": "sensor-001",
+      "temperature": 99,
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "warehouse": {
+      "deviceId": "sensor-002",
+      "temperature": 99,
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "serverRoom": {
+      "deviceId": "sensor-003",
+      "temperature": 99,
+      "timestamp": "2026-01-01T12:00:00Z"
+    }
+  },
+  "invalid": {
+    "missingDeviceId": {
+      "temperature": 25,
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "badTemperature": {
+      "deviceId": "sensor-001",
+      "temperature": "hot",
+      "timestamp": "2026-01-01T12:00:00Z"
+    },
+    "badTimestamp": {
+      "deviceId": "sensor-001",
+      "temperature": 25,
+      "timestamp": "not-a-date"
+    }
+  }
+}

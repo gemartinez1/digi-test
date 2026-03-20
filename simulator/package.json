@@ -1,0 +1,17 @@
+{
+  "name": "iot-sensor-simulator",
+  "version": "1.0.0",
+  "description": "Simulates IoT sensors sending telemetry to the backend",
+  "scripts": {
+    "start": "ts-node sensor-simulator.ts",
+    "start:spike": "ts-node sensor-simulator.ts --spike"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  }
+}
