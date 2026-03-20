@@ -101,7 +101,7 @@ describe('Dashboard — Real-time via API', { tags: ['@regression'] }, () => {
     cy.get('[data-test-id="refresh-button"]').click();
     cy.get('[data-test-id="alert-list"]').should('be.visible');
     cy.get('[data-test-id="alert-list"]').within(() => {
-      cy.contains('sensor-001').should('exist');
+      cy.contains('High Temp').should('exist');
     });
   });
 
