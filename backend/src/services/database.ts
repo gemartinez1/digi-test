@@ -11,7 +11,7 @@ class InMemoryDatabase {
     this.seed();
   }
 
-  private seed() {
+  private seed(): void {
     const seedDevices: Device[] = [
       {
         id: 'sensor-001',
