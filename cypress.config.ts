@@ -1,5 +1,7 @@
 import { defineConfig } from 'cypress';
-import { configureVisualRegression } from 'cypress-image-diff-js/plugin';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { configureVisualRegression } = require('cypress-image-diff-js/plugin');
 
 export default defineConfig({
   e2e: {
@@ -13,7 +15,7 @@ export default defineConfig({
     env: {
       API_URL: 'http://localhost:3001',
       visualRegression: {
-        type: 'base',           // 'base' = generate baseline, 'regression' = compare
+        type: 'regression',     // 'base' = generate baseline, 'regression' = compare
       },
     },
     setupNodeEvents(on, config) {
