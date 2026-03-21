@@ -1,7 +1,7 @@
 import { defineConfig } from 'cypress';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { configureVisualRegression } = require('cypress-image-diff-js/plugin');
+const configureVisualRegression = require('cypress-image-diff-js/plugin');
 
 export default defineConfig({
   e2e: {
