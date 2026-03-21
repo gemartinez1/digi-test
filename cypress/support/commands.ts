@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
-import 'cypress-image-diff-js/command';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const compareSnapshotCommand = require('cypress-image-diff-js/command');
+compareSnapshotCommand();
 
 const API_URL = Cypress.env('API_URL') as string;
 
