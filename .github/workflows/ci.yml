@@ -111,7 +111,7 @@ jobs:
 
       - name: Start frontend preview
         run: |
-          npm run preview --prefix frontend &
+          cd frontend && npx vite preview --host --port 4173 &
           npx wait-on http://localhost:4173 --timeout 30000
 
       - name: Run Cypress smoke tests
@@ -152,14 +152,15 @@ jobs:
           npm ci --prefix frontend
           npm ci
 
-      - name: Build backend
-        run: npm run build
-        working-directory: backend
+      - name: Build backend and frontend
+        run: |
+          npm run build --prefix backend
+          npm run build --prefix frontend
 
       - name: Start services
         run: |
           NODE_ENV=production node backend/dist/index.js &
-          npm run preview --prefix frontend &
+          cd frontend && npx vite preview --host --port 4173 &
           npx wait-on http://localhost:3001/health http://localhost:4173 --timeout 30000
 
       - name: Run Cypress regression tests (shard ${{ matrix.containers }}/2)
