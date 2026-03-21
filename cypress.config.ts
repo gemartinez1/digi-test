@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress';
+import { addMatchImageSnapshotPlugin } from 'cypress-image-snapshot/plugin';
 
 export default defineConfig({
   e2e: {
@@ -13,7 +14,8 @@ export default defineConfig({
       API_URL: 'http://localhost:3001',
     },
     setupNodeEvents(on, config) {
-      // Emit test tags for smoke vs regression filtering
+      addMatchImageSnapshotPlugin(on, config);
+
       on('task', {
         log(message: string) {
           console.log(message);

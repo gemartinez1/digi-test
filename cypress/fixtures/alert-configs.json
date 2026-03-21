@@ -1,0 +1,5 @@
+[
+  { "deviceId": "sensor-001", "temperatureThreshold": 8,  "minTemperatureThreshold": -2, "enabled": true },
+  { "deviceId": "sensor-002", "temperatureThreshold": 35, "minTemperatureThreshold": 5,  "enabled": true },
+  { "deviceId": "sensor-003", "temperatureThreshold": 28, "minTemperatureThreshold": 15, "enabled": true }
+]
