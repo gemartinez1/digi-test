@@ -1,4 +1,7 @@
 /// <reference types="cypress" />
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const compareSnapshotCommand = require('cypress-image-diff-js/command');
+compareSnapshotCommand();
 
 const API_URL = Cypress.env('API_URL') as string;
 
@@ -73,6 +76,7 @@ declare global {
       setAlertThreshold(deviceId: string, threshold: number): Chainable<Cypress.Response<unknown>>;
       clearAlerts(): Chainable<void>;
       getActiveAlerts(): Chainable<Cypress.Response<unknown>>;
+      compareSnapshot(name: string, errorThreshold?: number): Chainable<void>;
     }
   }
 }

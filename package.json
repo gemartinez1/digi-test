@@ -15,11 +15,14 @@
     "cypress:open": "cypress open",
     "cypress:smoke": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@smoke",
     "cypress:regression": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@regression",
-    "cypress:all": "cypress run"
+    "cypress:all": "cypress run",
+    "cypress:visual": "cypress run --config-file cypress.visual.config.js",
+    "cypress:visual:update": "cypress run --config-file cypress.visual.config.js --env visualRegression={\"type\":\"base\"}"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "cypress": "^13.6.0",
+    "cypress-image-diff-js": "^2.3.0",
     "typescript": "^5.3.2",
     "wait-on": "^7.2.0"
   }
