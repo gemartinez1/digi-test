@@ -17,13 +17,12 @@
     "cypress:regression": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@regression",
     "cypress:all": "cypress run",
     "cypress:visual": "cypress run --spec 'cypress/e2e/visual.cy.ts'",
-    "cypress:visual:update": "cypress run --spec 'cypress/e2e/visual.cy.ts' --env updateSnapshots=true"
+    "cypress:visual:update": "cypress run --spec 'cypress/e2e/visual.cy.ts' --env visualRegression={\"type\":\"base\"}"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/cypress-image-snapshot": "^3.1.6",
     "cypress": "^13.6.0",
-    "cypress-image-snapshot": "^4.0.1",
+    "cypress-image-diff-js": "^2.3.0",
     "typescript": "^5.3.2",
     "wait-on": "^7.2.0"
   }

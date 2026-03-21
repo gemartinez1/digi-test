@@ -1,28 +1,26 @@
 /**
  * Visual Regression Tests
  *
- * Uses cypress-image-snapshot to capture and compare screenshots.
+ * Uses cypress-image-diff-js to capture and compare screenshots.
  *
- * First run:  snapshots are created as baselines in cypress/snapshots/
+ * First run:  snapshots are created as baselines in cypress/snapshots/baseline/
  * Later runs: new screenshot is compared pixel-by-pixel against baseline.
- *             Diff images land in cypress/snapshots/__diff_output__/
+ *             Diff images land in cypress/snapshots/diff/
  *
- * To update baselines after intentional UI changes:
- *   npx cypress run --spec cypress/e2e/visual.cy.ts --env updateSnapshots=true
+ * To regenerate baselines after intentional UI changes, delete the baseline
+ * folder and re-run — or set env.visualRegression.type = 'base' in cypress.config.ts
  *
  * @visual
  */
 
-const SNAPSHOT_OPTIONS = {
-  failureThreshold: 0.03,
-  failureThresholdType: 'percent',
-};
+// Error threshold: 0.03 = allow up to 3% pixel difference (antialiasing, fonts)
+const THRESHOLD = 0.03;
 
 describe('Visual Regression — Login Page', { tags: ['@visual'] }, () => {
   it('login page matches baseline', () => {
     cy.visit('/');
     cy.get('[data-test-id="login-form"]').should('be.visible');
-    cy.matchImageSnapshot('login-page', SNAPSHOT_OPTIONS);
+    cy.compareSnapshot('login-page', THRESHOLD);
   });
 
   it('login error state matches baseline', () => {
@@ -31,7 +29,7 @@ describe('Visual Regression — Login Page', { tags: ['@visual'] }, () => {
     cy.get('[data-test-id="login-password"]').type('wrong');
     cy.get('[data-test-id="login-submit"]').click();
     cy.get('[data-test-id="login-error"]').should('be.visible');
-    cy.matchImageSnapshot('login-page-error', SNAPSHOT_OPTIONS);
+    cy.compareSnapshot('login-page-error', THRESHOLD);
   });
 });
 
@@ -44,23 +42,20 @@ describe('Visual Regression — Dashboard', { tags: ['@visual'] }, () => {
     cy.visit('/');
     cy.wait('@getDevices');
     cy.wait('@getAlerts');
-    // Wait for any CSS transitions to settle
     cy.get('[data-test-id="device-list"]').should('be.visible');
   });
 
   it('dashboard — no alerts state matches baseline', () => {
     cy.get('[data-test-id="no-alerts"]').should('be.visible');
-    cy.matchImageSnapshot('dashboard-no-alerts', SNAPSHOT_OPTIONS);
+    cy.compareSnapshot('dashboard-no-alerts', THRESHOLD);
   });
 
   it('stats bar matches baseline', () => {
-    cy.get('[data-test-id="stats-bar"]')
-      .matchImageSnapshot('stats-bar', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="stats-bar"]').compareSnapshot('stats-bar', THRESHOLD);
   });
 
   it('device list matches baseline', () => {
-    cy.get('[data-test-id="device-list"]')
-      .matchImageSnapshot('device-list', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="device-list"]').compareSnapshot('device-list', THRESHOLD);
   });
 
   it('dashboard — with active alerts matches baseline', () => {
@@ -81,7 +76,7 @@ describe('Visual Regression — Dashboard', { tags: ['@visual'] }, () => {
     cy.visit('/');
     cy.wait('@getAlertsWithData');
     cy.get('[data-test-id="alert-badge"]').should('be.visible');
-    cy.matchImageSnapshot('dashboard-with-alerts', SNAPSHOT_OPTIONS);
+    cy.compareSnapshot('dashboard-with-alerts', THRESHOLD);
   });
 
   it('alert list item matches baseline', () => {
@@ -101,12 +96,16 @@ describe('Visual Regression — Dashboard', { tags: ['@visual'] }, () => {
 
     cy.visit('/');
     cy.wait('@getAlertsSnap');
-    cy.get('[data-test-id="alert-list"]')
-      .matchImageSnapshot('alert-list-item', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="alert-list"]').compareSnapshot('alert-list-item', THRESHOLD);
   });
 });
 
 describe('Visual Regression — Device Card States', { tags: ['@visual'] }, () => {
+  beforeEach(() => {
+    cy.intercept('GET', '/api/alerts', []).as('getAlerts');
+    cy.loginViaSession();
+  });
+
   it('online device card matches baseline', () => {
     cy.intercept('GET', '/api/devices', [
       {
@@ -119,12 +118,9 @@ describe('Visual Regression — Device Card States', { tags: ['@visual'] }, () =
         status: 'online',
       },
     ]).as('getOnline');
-    cy.intercept('GET', '/api/alerts', []).as('getAlerts');
-    cy.loginViaSession();
     cy.visit('/');
     cy.wait('@getOnline');
-    cy.get('[data-test-id="device-card-sensor-001"]')
-      .matchImageSnapshot('device-card-online', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="device-card-sensor-001"]').compareSnapshot('device-card-online', THRESHOLD);
   });
 
   it('critical device card matches baseline', () => {
@@ -139,12 +135,9 @@ describe('Visual Regression — Device Card States', { tags: ['@visual'] }, () =
         status: 'critical',
       },
     ]).as('getCritical');
-    cy.intercept('GET', '/api/alerts', []).as('getAlerts');
-    cy.loginViaSession();
     cy.visit('/');
     cy.wait('@getCritical');
-    cy.get('[data-test-id="device-card-sensor-001"]')
-      .matchImageSnapshot('device-card-critical', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="device-card-sensor-001"]').compareSnapshot('device-card-critical', THRESHOLD);
   });
 
   it('warning device card matches baseline', () => {
@@ -159,12 +152,9 @@ describe('Visual Regression — Device Card States', { tags: ['@visual'] }, () =
         status: 'warning',
       },
     ]).as('getWarning');
-    cy.intercept('GET', '/api/alerts', []).as('getAlerts');
-    cy.loginViaSession();
     cy.visit('/');
     cy.wait('@getWarning');
-    cy.get('[data-test-id="device-card-sensor-001"]')
-      .matchImageSnapshot('device-card-warning', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="device-card-sensor-001"]').compareSnapshot('device-card-warning', THRESHOLD);
   });
 });
 
@@ -178,11 +168,10 @@ describe('Visual Regression — Alert Config Page', { tags: ['@visual'] }, () =>
   });
 
   it('alert config page matches baseline', () => {
-    cy.matchImageSnapshot('alert-config-page', SNAPSHOT_OPTIONS);
+    cy.compareSnapshot('alert-config-page', THRESHOLD);
   });
 
   it('alert config table matches baseline', () => {
-    cy.get('[data-test-id="configs-table"]')
-      .matchImageSnapshot('alert-config-table', SNAPSHOT_OPTIONS);
+    cy.get('[data-test-id="configs-table"]').compareSnapshot('alert-config-table', THRESHOLD);
   });
 });

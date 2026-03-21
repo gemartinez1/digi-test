@@ -1,12 +1,5 @@
 /// <reference types="cypress" />
-import { addMatchImageSnapshotCommand } from 'cypress-image-snapshot/command';
-
-addMatchImageSnapshotCommand({
-  failureThreshold: 0.03,        // allow 3% pixel difference (antialiasing, fonts)
-  failureThresholdType: 'percent',
-  customDiffDir: 'cypress/snapshots/__diff_output__',
-  capture: 'viewport',
-});
+import 'cypress-image-diff-js/command';
 
 const API_URL = Cypress.env('API_URL') as string;
 
@@ -81,7 +74,7 @@ declare global {
       setAlertThreshold(deviceId: string, threshold: number): Chainable<Cypress.Response<unknown>>;
       clearAlerts(): Chainable<void>;
       getActiveAlerts(): Chainable<Cypress.Response<unknown>>;
-      matchImageSnapshot(name?: string, options?: object): Chainable<void>;
+      compareSnapshot(name: string, errorThreshold?: number): Chainable<void>;
     }
   }
 }

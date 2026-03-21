@@ -1,5 +1,5 @@
 import { defineConfig } from 'cypress';
-import { addMatchImageSnapshotPlugin } from 'cypress-image-snapshot/plugin';
+import { configureVisualRegression } from 'cypress-image-diff-js/plugin';
 
 export default defineConfig({
   e2e: {
@@ -12,9 +12,12 @@ export default defineConfig({
     requestTimeout: 10000,
     env: {
       API_URL: 'http://localhost:3001',
+      visualRegression: {
+        type: 'base',           // 'base' = generate baseline, 'regression' = compare
+      },
     },
     setupNodeEvents(on, config) {
-      addMatchImageSnapshotPlugin(on, config);
+      configureVisualRegression(on);
 
       on('task', {
         log(message: string) {
