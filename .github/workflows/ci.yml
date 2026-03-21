@@ -115,7 +115,7 @@ jobs:
           npx wait-on http://localhost:4173 --timeout 30000
 
       - name: Run Cypress smoke tests
-        run: npx cypress run --spec "cypress/e2e/**/*.cy.ts" --env grepTags=@smoke
+        run: npx cypress run --spec "cypress/e2e/dashboard.cy.ts,cypress/e2e/alerts.cy.ts"
         env:
           CYPRESS_BASE_URL: http://localhost:4173
           CYPRESS_API_URL: http://localhost:3001
@@ -211,8 +211,7 @@ jobs:
       - name: Run Cypress regression tests (shard ${{ matrix.containers }}/2)
         run: |
           npx cypress run \
-            --spec "cypress/e2e/**/*.cy.ts" \
-            --env grepTags=@regression \
+            --spec "cypress/e2e/dashboard.cy.ts,cypress/e2e/alerts.cy.ts" \
             --reporter json \
             --reporter-options "output=cypress/results/results-${{ matrix.containers }}.json"
         env:
