@@ -16,8 +16,8 @@
     "cypress:smoke": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@smoke",
     "cypress:regression": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@regression",
     "cypress:all": "cypress run",
-    "cypress:visual": "cypress run --spec 'cypress/e2e/visual.cy.ts'",
-    "cypress:visual:update": "cypress run --spec 'cypress/e2e/visual.cy.ts' --env visualRegression={\"type\":\"base\"}"
+    "cypress:visual": "cypress run --config-file cypress.visual.config.js",
+    "cypress:visual:update": "cypress run --config-file cypress.visual.config.js --env visualRegression={\"type\":\"base\"}"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
