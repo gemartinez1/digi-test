@@ -17,7 +17,7 @@ module.exports = defineConfig({
       },
     },
     setupNodeEvents(on, config) {
-      configureVisualRegression(on);
+      configureVisualRegression(on, config);
       return config;
     },
   },
