@@ -5,6 +5,17 @@ compareSnapshotCommand();
 
 const API_URL = Cypress.env('API_URL') as string;
 
+// ─── GraphQL helper ───────────────────────────────────────────────────────────
+
+function gql(query: string, variables?: Record<string, unknown>) {
+  return cy.request({
+    method: 'POST',
+    url: `${API_URL}/graphql`,
+    body: { query, variables },
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 // ─── Authentication ──────────────────────────────────────────────────────────
 
 Cypress.Commands.add('login', (username = 'admin', password = 'admin123') => {
@@ -25,44 +36,61 @@ Cypress.Commands.add('loginViaSession', (username = 'admin', password = 'admin12
   });
 });
 
-// ─── API Helpers ─────────────────────────────────────────────────────────────
+// ─── API Helpers (GraphQL) ────────────────────────────────────────────────────
 
 Cypress.Commands.add('postTelemetry', (payload: {
   deviceId: string;
   temperature: number;
   timestamp?: string;
 }) => {
-  return cy.request({
-    method: 'POST',
-    url: `${API_URL}/telemetry`,
-    body: {
-      timestamp: new Date().toISOString(),
-      ...payload,
-    },
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return gql(
+    `mutation PostTelemetry($deviceId: ID!, $temperature: Float!, $timestamp: String) {
+      postTelemetry(deviceId: $deviceId, temperature: $temperature, timestamp: $timestamp) {
+        success
+        alertTriggered
+        alert { id deviceName type message }
+      }
+    }`,
+    {
+      deviceId: payload.deviceId,
+      temperature: payload.temperature,
+      timestamp: payload.timestamp ?? new Date().toISOString(),
+    }
+  );
 });
 
 Cypress.Commands.add('setAlertThreshold', (deviceId: string, threshold: number) => {
-  return cy.request({
-    method: 'POST',
-    url: `${API_URL}/alerts/config`,
-    body: { deviceId, temperatureThreshold: threshold, enabled: true },
-    headers: { 'Content-Type': 'application/json' },
-  });
-});
-
-Cypress.Commands.add('clearAlerts', () => {
-  cy.request(`${API_URL}/alerts`).then((res) => {
-    const alerts = res.body as Array<{ id: string }>;
-    alerts.forEach((alert) => {
-      cy.request('POST', `${API_URL}/alerts/${alert.id}/acknowledge`);
-    });
-  });
+  return gql(
+    `mutation SetAlertConfig($deviceId: ID!, $temperatureThreshold: Float!) {
+      setAlertConfig(deviceId: $deviceId, temperatureThreshold: $temperatureThreshold, enabled: true) {
+        success
+        config { deviceId temperatureThreshold }
+      }
+    }`,
+    { deviceId, temperatureThreshold: threshold }
+  );
 });
 
 Cypress.Commands.add('getActiveAlerts', () => {
-  return cy.request(`${API_URL}/alerts`);
+  return gql(
+    `query GetAlerts {
+      alerts { id deviceId deviceName type message temperature threshold timestamp acknowledged }
+    }`
+  );
+});
+
+Cypress.Commands.add('clearAlerts', () => {
+  gql(`query { alerts { id } }`).then((res) => {
+    const alerts = (res.body.data.alerts as Array<{ id: string }>);
+    alerts.forEach((alert) => {
+      gql(
+        `mutation AcknowledgeAlert($id: ID!) {
+          acknowledgeAlert(id: $id) { success }
+        }`,
+        { id: alert.id }
+      );
+    });
+  });
 });
 
 // ─── Type declarations ────────────────────────────────────────────────────────

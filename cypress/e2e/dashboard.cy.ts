@@ -54,7 +54,7 @@ describe('Dashboard — Device List', { tags: ['@smoke'] }, () => {
   });
 
   it('intercepts and renders device list from API', () => {
-    cy.intercept('GET', '/api/devices', { fixture: 'devices.json' }).as('getDevices');
+    cy.intercept('POST', '/api/graphql', { fixture: 'devices.json' }).as('getDevices');
     cy.visit('/');
     cy.wait('@getDevices');
     cy.get('[data-test-id="device-list"]').should('be.visible');
@@ -66,10 +66,14 @@ describe('Dashboard — Device List', { tags: ['@smoke'] }, () => {
     cy.get('[data-test-id="stat-active-alerts"]').should('be.visible');
   });
 
-  it('loads devices from the real API', () => {
-    cy.request('GET', `${Cypress.env('API_URL') as string}/devices`).then((res) => {
+  it('loads devices from the GraphQL API', () => {
+    cy.request({
+      method: 'POST',
+      url: `${Cypress.env('API_URL') as string}/graphql`,
+      body: { query: '{ devices { id name status } }' },
+    }).then((res) => {
       expect(res.status).to.eq(200);
-      expect(res.body).to.be.an('array');
+      expect(res.body.data.devices).to.be.an('array');
     });
   });
 });

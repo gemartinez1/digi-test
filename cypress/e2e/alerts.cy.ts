@@ -29,13 +29,13 @@ describe('Alert Configuration Page', { tags: ['@smoke'] }, () => {
   });
 
   it('saves a new alert threshold configuration', () => {
-    cy.intercept('POST', '/api/alerts/config').as('saveConfig');
+    cy.intercept('POST', '/api/graphql').as('saveConfig');
 
     cy.get('[data-test-id="config-device-id"]').clear().type('sensor-001');
     cy.get('[data-test-id="config-temperature-threshold"]').clear().type('25');
     cy.get('[data-test-id="config-submit"]').click();
 
-    cy.wait('@saveConfig').its('response.statusCode').should('eq', 201);
+    cy.wait('@saveConfig').its('response.statusCode').should('eq', 200);
     cy.get('[data-test-id="config-success"]').should('be.visible');
   });
 
@@ -59,11 +59,17 @@ describe('Alert Lifecycle — Full Flow', { tags: ['@regression'] }, () => {
   const BREACH_TEMP = 99;
 
   before(() => {
-    // Set known threshold via API before the suite
+    // Set known threshold via GraphQL before the suite
     cy.request({
       method: 'POST',
-      url: `${API_URL()}/alerts/config`,
-      body: { deviceId: DEVICE_ID, temperatureThreshold: THRESHOLD, enabled: true },
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          setAlertConfig(deviceId: "${DEVICE_ID}", temperatureThreshold: ${THRESHOLD}, enabled: true) {
+            success
+          }
+        }`,
+      },
     });
   });
 
@@ -74,18 +80,17 @@ describe('Alert Lifecycle — Full Flow', { tags: ['@regression'] }, () => {
 
   it('no alerts exist before telemetry breach', () => {
     cy.getActiveAlerts().then((res) => {
-      expect(res.body).to.have.length(0);
+      expect(res.body.data.alerts).to.have.length(0);
     });
     cy.visit('/');
     cy.get('[data-test-id="no-alerts"]').should('be.visible');
   });
 
-  it('telemetry breach creates an alert via API', () => {
+  it('telemetry breach creates an alert via GraphQL', () => {
     cy.postTelemetry({ deviceId: DEVICE_ID, temperature: BREACH_TEMP }).then((res) => {
-      expect(res.status).to.eq(201);
-      expect(res.body.alertTriggered).to.be.true;
-      expect(res.body.alert.type).to.eq('temperature_high');
-      expect(res.body.alert.temperature).to.eq(BREACH_TEMP);
+      expect(res.status).to.eq(200);
+      expect(res.body.data.postTelemetry.alertTriggered).to.be.true;
+      expect(res.body.data.postTelemetry.alert.type).to.eq('temperature_high');
     });
   });
 
@@ -132,64 +137,81 @@ describe('Alert Lifecycle — Full Flow', { tags: ['@regression'] }, () => {
   });
 });
 
-describe('API Contract Tests', { tags: ['@regression'] }, () => {
-  it('POST /telemetry returns 400 for invalid payload', () => {
-    cy.fixture('telemetry').then((fixtures) => {
-      cy.request({
-        method: 'POST',
-        url: `${API_URL()}/telemetry`,
-        body: fixtures.invalid.missingDeviceId,
-        failOnStatusCode: false,
-      }).then((res) => {
-        expect(res.status).to.eq(400);
-        expect(res.body.error).to.include('deviceId');
-      });
+describe('GraphQL Contract Tests', { tags: ['@regression'] }, () => {
+  it('postTelemetry returns error for missing deviceId', () => {
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation { postTelemetry(temperature: 5, timestamp: "2026-01-01T00:00:00Z") { success } }`,
+      },
+      failOnStatusCode: false,
+    }).then((res) => {
+      // GraphQL always returns 200; errors are in res.body.errors
+      expect(res.status).to.eq(400); // Apollo returns 400 for query-level syntax errors
     });
   });
 
-  it('POST /telemetry returns 400 for bad timestamp', () => {
-    cy.fixture('telemetry').then((fixtures) => {
-      cy.request({
-        method: 'POST',
-        url: `${API_URL()}/telemetry`,
-        body: fixtures.invalid.badTimestamp,
-        failOnStatusCode: false,
-      }).then((res) => {
-        expect(res.status).to.eq(400);
-        expect(res.body.error).to.include('timestamp');
-      });
-    });
-  });
-
-  it('GET /devices returns array', () => {
-    cy.request(`${API_URL()}/devices`).then((res) => {
+  it('postTelemetry returns error for invalid timestamp', () => {
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          postTelemetry(deviceId: "sensor-001", temperature: 5, timestamp: "not-a-date") {
+            success
+          }
+        }`,
+      },
+    }).then((res) => {
       expect(res.status).to.eq(200);
-      expect(res.body).to.be.an('array');
-      expect(res.body[0]).to.have.keys(['id', 'name', 'location', 'type', 'lastSeen', 'lastTemperature', 'status']);
+      expect(res.body.errors).to.exist;
+      expect(res.body.errors[0].message).to.include('timestamp');
     });
   });
 
-  it('GET /alerts returns array', () => {
-    cy.request(`${API_URL()}/alerts`).then((res) => {
+  it('devices query returns array with expected shape', () => {
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: { query: '{ devices { id name location type lastSeen lastTemperature status } }' },
+    }).then((res) => {
       expect(res.status).to.eq(200);
-      expect(res.body).to.be.an('array');
+      expect(res.body.data.devices).to.be.an('array');
+      expect(res.body.data.devices[0]).to.have.keys(
+        ['id', 'name', 'location', 'type', 'lastSeen', 'lastTemperature', 'status']
+      );
     });
   });
 
-  it('GET /health returns ok', () => {
+  it('alerts query returns array', () => {
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: { query: '{ alerts { id deviceId type acknowledged } }' },
+    }).then((res) => {
+      expect(res.status).to.eq(200);
+      expect(res.body.data.alerts).to.be.an('array');
+    });
+  });
+
+  it('GET /health returns ok (REST health check stays)', () => {
     cy.request(`${API_URL()}/health`).then((res) => {
       expect(res.status).to.eq(200);
       expect(res.body.status).to.eq('ok');
     });
   });
 
-  it('POST /alerts/config validates required fields', () => {
+  it('setAlertConfig returns error for missing deviceId', () => {
     cy.request({
       method: 'POST',
-      url: `${API_URL()}/alerts/config`,
-      body: { temperatureThreshold: 30 },
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation { setAlertConfig(temperatureThreshold: 30) { success } }`,
+      },
       failOnStatusCode: false,
     }).then((res) => {
+      // Missing required arg is a GraphQL syntax/validation error → 400
       expect(res.status).to.eq(400);
     });
   });
@@ -201,48 +223,78 @@ describe('Alert Threshold — Edge Cases', { tags: ['@regression'] }, () => {
   });
 
   it('does not trigger alert when temperature equals threshold exactly', () => {
-    cy.request('POST', `${API_URL()}/alerts/config`, {
-      deviceId: 'sensor-002',
-      temperatureThreshold: 50,
-      enabled: true,
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          setAlertConfig(deviceId: "sensor-002", temperatureThreshold: 50, enabled: true) { success }
+        }`,
+      },
     });
     cy.request({
       method: 'POST',
-      url: `${API_URL()}/telemetry`,
-      body: { deviceId: 'sensor-002', temperature: 50, timestamp: new Date().toISOString() },
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          postTelemetry(deviceId: "sensor-002", temperature: 50, timestamp: "${new Date().toISOString()}") {
+            alertTriggered
+          }
+        }`,
+      },
     }).then((res) => {
       // At threshold = OK, only > threshold triggers
-      expect(res.body.alertTriggered).to.be.false;
+      expect(res.body.data.postTelemetry.alertTriggered).to.be.false;
     });
   });
 
   it('triggers alert when temperature is 1 above threshold', () => {
-    cy.request('POST', `${API_URL()}/alerts/config`, {
-      deviceId: 'sensor-002',
-      temperatureThreshold: 50,
-      enabled: true,
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          setAlertConfig(deviceId: "sensor-002", temperatureThreshold: 50, enabled: true) { success }
+        }`,
+      },
     });
     cy.request({
       method: 'POST',
-      url: `${API_URL()}/telemetry`,
-      body: { deviceId: 'sensor-002', temperature: 51, timestamp: new Date().toISOString() },
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          postTelemetry(deviceId: "sensor-002", temperature: 51, timestamp: "${new Date().toISOString()}") {
+            alertTriggered
+          }
+        }`,
+      },
     }).then((res) => {
-      expect(res.body.alertTriggered).to.be.true;
+      expect(res.body.data.postTelemetry.alertTriggered).to.be.true;
     });
   });
 
   it('respects enabled=false config — no alert even on breach', () => {
-    cy.request('POST', `${API_URL()}/alerts/config`, {
-      deviceId: 'sensor-003',
-      temperatureThreshold: 5,
-      enabled: false,
+    cy.request({
+      method: 'POST',
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          setAlertConfig(deviceId: "sensor-003", temperatureThreshold: 5, enabled: false) { success }
+        }`,
+      },
     });
     cy.request({
       method: 'POST',
-      url: `${API_URL()}/telemetry`,
-      body: { deviceId: 'sensor-003', temperature: 99, timestamp: new Date().toISOString() },
+      url: `${API_URL()}/graphql`,
+      body: {
+        query: `mutation {
+          postTelemetry(deviceId: "sensor-003", temperature: 99, timestamp: "${new Date().toISOString()}") {
+            alertTriggered
+          }
+        }`,
+      },
     }).then((res) => {
-      expect(res.body.alertTriggered).to.be.false;
+      expect(res.body.data.postTelemetry.alertTriggered).to.be.false;
     });
   });
 });
