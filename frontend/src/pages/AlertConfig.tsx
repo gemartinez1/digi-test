@@ -1,10 +1,9 @@
-import React, { useEffect, useState, FormEvent } from 'react';
+import React, { useState, FormEvent } from 'react';
+import { useQuery, useMutation } from '@apollo/client/react';
 import { AlertConfig } from '../types';
-import { api } from '../api/client';
+import { GET_ALERT_CONFIGS, SET_ALERT_CONFIG } from '../graphql/queries';
 
 export function AlertConfigPage() {
-  const [configs, setConfigs] = useState<AlertConfig[]>([]);
-  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     deviceId: '',
     temperatureThreshold: '',
@@ -14,14 +13,21 @@ export function AlertConfigPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    void api.getAlertConfigs().then((data) => {
-      setConfigs(data);
-      setLoading(false);
-    });
-  }, []);
+  const { data, loading } = useQuery<{ alertConfigs: AlertConfig[] }>(GET_ALERT_CONFIGS);
+  const configs = data?.alertConfigs ?? [];
 
-  const handleSubmit = async (e: FormEvent) => {
+  const [setAlertConfig, { loading: saving }] = useMutation(SET_ALERT_CONFIG, {
+    refetchQueries: [{ query: GET_ALERT_CONFIGS }],
+    onCompleted: () => {
+      setSaved(true);
+      setForm({ deviceId: '', temperatureThreshold: '', minTemperatureThreshold: '', enabled: true });
+    },
+    onError: () => {
+      setError('Failed to save config. Is the backend running?');
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setSaved(false);
@@ -31,31 +37,16 @@ export function AlertConfigPage() {
       return;
     }
 
-    try {
-      const result = await api.setAlertConfig({
+    void setAlertConfig({
+      variables: {
         deviceId: form.deviceId,
         temperatureThreshold: Number(form.temperatureThreshold),
         minTemperatureThreshold: form.minTemperatureThreshold
           ? Number(form.minTemperatureThreshold)
           : undefined,
         enabled: form.enabled,
-      });
-
-      setConfigs((prev) => {
-        const idx = prev.findIndex((c) => c.deviceId === result.config.deviceId);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = result.config;
-          return updated;
-        }
-        return [...prev, result.config];
-      });
-
-      setSaved(true);
-      setForm({ deviceId: '', temperatureThreshold: '', minTemperatureThreshold: '', enabled: true });
-    } catch {
-      setError('Failed to save config. Is the backend running?');
-    }
+      },
+    });
   };
 
   return (
@@ -114,8 +105,8 @@ export function AlertConfigPage() {
           {error && <p data-test-id="config-error" style={styles.error}>{error}</p>}
           {saved && <p data-test-id="config-success" style={styles.success}>✅ Configuration saved!</p>}
 
-          <button data-test-id="config-submit" type="submit" style={styles.button}>
-            Save Configuration
+          <button data-test-id="config-submit" type="submit" style={styles.button} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Configuration'}
           </button>
         </form>
       </section>

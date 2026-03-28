@@ -1,92 +1,102 @@
 import request from 'supertest';
-import { app } from '../index';
+import { app, apolloReady } from '../index';
 import { db } from '../services/database';
 
+beforeAll(async () => { await apolloReady; });
 beforeEach(() => db.reset());
 
-describe('GET /alerts', () => {
+const GQL = (query: string) =>
+  request(app).post('/graphql').send({ query }).set('Content-Type', 'application/json');
+
+describe('alerts query', () => {
   it('returns empty array when no alerts exist', async () => {
-    const res = await request(app).get('/alerts');
+    const res = await GQL(`{ alerts { id deviceId } }`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(0);
+    expect(Array.isArray(res.body.data.alerts)).toBe(true);
+    expect(res.body.data.alerts).toHaveLength(0);
   });
 
   it('returns active alerts after telemetry breach', async () => {
-    await request(app).post('/telemetry').send({
-      deviceId: 'sensor-001',
-      temperature: 99,
-      timestamp: new Date().toISOString(),
-    });
-    const res = await request(app).get('/alerts');
+    await GQL(`mutation {
+      postTelemetry(deviceId: "sensor-001", temperature: 99, timestamp: "${new Date().toISOString()}") {
+        success
+      }
+    }`);
+    const res = await GQL(`{ alerts { id deviceId acknowledged } }`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0].deviceId).toBe('sensor-001');
+    expect(res.body.data.alerts.length).toBeGreaterThan(0);
+    expect(res.body.data.alerts[0].deviceId).toBe('sensor-001');
   });
 });
 
-describe('POST /alerts/config', () => {
-  it('saves alert config and returns 201', async () => {
-    const res = await request(app).post('/alerts/config').send({
-      deviceId: 'sensor-001',
-      temperatureThreshold: 25,
-    });
-    expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.config.temperatureThreshold).toBe(25);
+describe('setAlertConfig mutation', () => {
+  it('saves alert config and returns success', async () => {
+    const res = await GQL(`mutation {
+      setAlertConfig(deviceId: "sensor-001", temperatureThreshold: 25) {
+        success
+        config { temperatureThreshold }
+      }
+    }`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.setAlertConfig.success).toBe(true);
+    expect(res.body.data.setAlertConfig.config.temperatureThreshold).toBe(25);
   });
 
-  it('rejects config without deviceId', async () => {
-    const res = await request(app).post('/alerts/config').send({
-      temperatureThreshold: 25,
-    });
+  it('returns error when deviceId is missing', async () => {
+    const res = await GQL(`mutation {
+      setAlertConfig(temperatureThreshold: 25) { success }
+    }`);
     expect(res.status).toBe(400);
   });
 
-  it('rejects config without threshold', async () => {
-    const res = await request(app).post('/alerts/config').send({
-      deviceId: 'sensor-001',
-    });
+  it('returns error when temperatureThreshold is missing', async () => {
+    const res = await GQL(`mutation {
+      setAlertConfig(deviceId: "sensor-001") { success }
+    }`);
     expect(res.status).toBe(400);
   });
 
   it('updated config affects subsequent telemetry processing', async () => {
-    // Lower threshold to 1°C
-    await request(app).post('/alerts/config').send({
-      deviceId: 'sensor-001',
-      temperatureThreshold: 1,
-    });
-    // Send temperature of 2°C — should now breach
-    const res = await request(app).post('/telemetry').send({
-      deviceId: 'sensor-001',
-      temperature: 2,
-      timestamp: new Date().toISOString(),
-    });
-    expect(res.body.alertTriggered).toBe(true);
+    await GQL(`mutation {
+      setAlertConfig(deviceId: "sensor-001", temperatureThreshold: 1) { success }
+    }`);
+    const res = await GQL(`mutation {
+      postTelemetry(deviceId: "sensor-001", temperature: 2, timestamp: "${new Date().toISOString()}") {
+        alertTriggered
+      }
+    }`);
+    expect(res.body.data.postTelemetry.alertTriggered).toBe(true);
   });
 });
 
-describe('POST /alerts/:id/acknowledge', () => {
+describe('acknowledgeAlert mutation', () => {
   it('acknowledges an existing alert', async () => {
-    await request(app).post('/telemetry').send({
-      deviceId: 'sensor-001',
-      temperature: 99,
-      timestamp: new Date().toISOString(),
-    });
-    const alertsRes = await request(app).get('/alerts');
-    const alertId = alertsRes.body[0].id;
+    await GQL(`mutation {
+      postTelemetry(deviceId: "sensor-001", temperature: 99, timestamp: "${new Date().toISOString()}") {
+        success
+      }
+    }`);
+    const alertsRes = await GQL(`{ alerts { id } }`);
+    const alertId = alertsRes.body.data.alerts[0].id as string;
 
-    const ackRes = await request(app).post(`/alerts/${alertId}/acknowledge`);
+    const ackRes = await GQL(`mutation {
+      acknowledgeAlert(id: "${alertId}") { success message }
+    }`);
     expect(ackRes.status).toBe(200);
-    expect(ackRes.body.success).toBe(true);
+    expect(ackRes.body.data.acknowledgeAlert.success).toBe(true);
 
     // Should no longer appear in active alerts
-    const activeRes = await request(app).get('/alerts');
-    expect(activeRes.body.find((a: { id: string }) => a.id === alertId)).toBeUndefined();
+    const activeRes = await GQL(`{ alerts { id } }`);
+    const stillPresent = activeRes.body.data.alerts.find((a: { id: string }) => a.id === alertId);
+    expect(stillPresent).toBeUndefined();
   });
 
-  it('returns 404 for unknown alert id', async () => {
-    const res = await request(app).post('/alerts/nonexistent/acknowledge');
-    expect(res.status).toBe(404);
+  it('returns error for unknown alert id', async () => {
+    const res = await GQL(`mutation {
+      acknowledgeAlert(id: "nonexistent") { success }
+    }`);
+    expect(res.status).toBe(200);
+    expect(res.body.errors).toBeDefined();
+    expect(res.body.errors[0].extensions.code).toBe('NOT_FOUND');
   });
 });

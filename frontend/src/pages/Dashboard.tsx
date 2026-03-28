@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useQuery, useMutation } from '@apollo/client/react';
 import { Device, Alert, WebSocketMessage } from '../types';
-import { api } from '../api/client';
+import { GET_DEVICES, GET_ALERTS, ACKNOWLEDGE_ALERT } from '../graphql/queries';
 import { DeviceList } from '../components/DeviceList';
 import { AlertList } from '../components/AlertList';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -10,36 +11,26 @@ interface Props {
 }
 
 export function Dashboard({ onWsStatusChange }: Props) {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loadingDevices, setLoadingDevices] = useState(true);
-  const [loadingAlerts, setLoadingAlerts] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchDevices = useCallback(async () => {
-    setLoadingDevices(true);
-    try {
-      const data = await api.getDevices();
-      setDevices(data);
-    } finally {
-      setLoadingDevices(false);
-    }
-  }, []);
+  const {
+    data: devicesData,
+    loading: loadingDevices,
+    refetch: refetchDevices,
+  } = useQuery<{ devices: Device[] }>(GET_DEVICES);
 
-  const fetchAlerts = useCallback(async () => {
-    setLoadingAlerts(true);
-    try {
-      const data = await api.getAlerts();
-      setAlerts(data);
-    } finally {
-      setLoadingAlerts(false);
-    }
-  }, []);
+  const {
+    data: alertsData,
+    loading: loadingAlerts,
+    refetch: refetchAlerts,
+  } = useQuery<{ alerts: Alert[] }>(GET_ALERTS);
 
-  useEffect(() => {
-    void fetchDevices();
-    void fetchAlerts();
-  }, [fetchDevices, fetchAlerts]);
+  const [acknowledgeAlert] = useMutation(ACKNOWLEDGE_ALERT, {
+    refetchQueries: [{ query: GET_ALERTS }],
+  });
+
+  const devices = devicesData?.devices ?? [];
+  const alerts = alertsData?.alerts ?? [];
 
   const handleWebSocketMessage = useCallback(
     (msg: WebSocketMessage) => {
@@ -47,27 +38,22 @@ export function Dashboard({ onWsStatusChange }: Props) {
         onWsStatusChange(true);
         return;
       }
-      if (msg.type === 'device_updated' && msg.payload) {
-        const updated = msg.payload as Device;
-        setDevices((prev) =>
-          prev.map((d) => (d.id === updated.id ? updated : d))
-        );
+      if (msg.type === 'device_updated') {
+        void refetchDevices();
         setLastUpdated(new Date());
       }
-      if (msg.type === 'alert_created' && msg.payload) {
-        const newAlert = msg.payload as Alert;
-        setAlerts((prev) => [newAlert, ...prev]);
+      if (msg.type === 'alert_created') {
+        void refetchAlerts();
         setLastUpdated(new Date());
       }
     },
-    [onWsStatusChange]
+    [onWsStatusChange, refetchDevices, refetchAlerts]
   );
 
   useWebSocket(handleWebSocketMessage);
 
-  const handleAcknowledge = async (id: string) => {
-    await api.acknowledgeAlert(id);
-    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  const handleAcknowledge = (id: string) => {
+    void acknowledgeAlert({ variables: { id } });
   };
 
   const activeCount = alerts.length;
@@ -102,7 +88,7 @@ export function Dashboard({ onWsStatusChange }: Props) {
         )}
         <button
           data-test-id="refresh-button"
-          onClick={() => { void fetchDevices(); void fetchAlerts(); }}
+          onClick={() => { void refetchDevices(); void refetchAlerts(); }}
           style={styles.refreshBtn}
         >
           ↻ Refresh

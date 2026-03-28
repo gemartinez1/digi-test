@@ -1,50 +1,52 @@
 import http from 'http';
 import express from 'express';
 import cors from 'cors';
-import telemetryRouter from './routes/telemetry';
-import devicesRouter from './routes/devices';
-import alertsRouter from './routes/alerts';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import { typeDefs } from './graphql/schema';
+import { resolvers } from './graphql/resolvers';
 import { initWebSocket } from './services/websocket';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json());
-
-// Request logger
-app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
-
-// Routes
-app.use('/telemetry', telemetryRouter);
-app.use('/devices', devicesRouter);
-app.use('/alerts', alertsRouter);
-
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// 404 handler
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Create HTTP server and attach WebSocket
 const server = http.createServer(app);
-initWebSocket(server);
+const apollo = new ApolloServer({ typeDefs, resolvers });
 
-// Only listen when not in test mode
-if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`\n🚀 IoT Monitor API running at http://localhost:${PORT}`);
-    console.log(`🔌 WebSocket available at ws://localhost:${PORT}/ws`);
-    console.log(`📡 Endpoints: GET /devices | GET /alerts | POST /telemetry | POST /alerts/config\n`);
+// Apollo requires async start — expose promise so tests can await readiness
+export const apolloReady = (async () => {
+  await apollo.start();
+
+  app.use((req, _res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
   });
-}
+
+  // Apollo Server v4 requires cors() and express.json() applied directly on the route
+  app.use(
+    '/graphql',
+    cors<cors.CorsRequest>({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }),
+    express.json(),
+    expressMiddleware(apollo),
+  );
+
+  // Health check stays as REST
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.use((_req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+  });
+
+  initWebSocket(server);
+
+  if (process.env.NODE_ENV !== 'test') {
+    server.listen(PORT, () => {
+      console.log(`\n🚀 IoT Monitor GraphQL API at http://localhost:${PORT}/graphql`);
+      console.log(`🔌 WebSocket at ws://localhost:${PORT}/ws`);
+      console.log(`❤️  Health: http://localhost:${PORT}/health\n`);
+    });
+  }
+})();
 
 export { app, server };
