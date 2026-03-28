@@ -54,7 +54,7 @@ describe('Dashboard — Device List', { tags: ['@smoke'] }, () => {
   });
 
   it('intercepts and renders device list from API', () => {
-    cy.intercept('GET', '/api/devices', { fixture: 'devices.json' }).as('getDevices');
+    cy.intercept('POST', '/api/graphql', { fixture: 'devices.json' }).as('getDevices');
     cy.visit('/');
     cy.wait('@getDevices');
     cy.get('[data-test-id="device-list"]').should('be.visible');
