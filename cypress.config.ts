@@ -9,6 +9,13 @@ export default defineConfig({
     screenshotOnRunFailure: true,
     defaultCommandTimeout: 8000,
     requestTimeout: 10000,
+    reporter: 'mochawesome',
+    reporterOptions: {
+      reportDir: 'cypress/reports/mocha',
+      overwrite: false,
+      html: false,
+      json: true,
+    },
     env: {
       API_URL: 'http://localhost:3001',
     },

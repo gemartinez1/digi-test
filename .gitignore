@@ -4,6 +4,7 @@ coverage/
 cypress/screenshots/
 cypress/videos/
 cypress/results/
+cypress/reports/
 cypress/snapshots/__diff_output__/
 .env
 *.log

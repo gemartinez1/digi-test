@@ -16,13 +16,20 @@
     "cypress:smoke": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@smoke",
     "cypress:regression": "cypress run --spec 'cypress/e2e/**/*.cy.ts' --env grepTags=@regression",
     "cypress:all": "cypress run",
+    "cypress:report": "npm run report:clean && cypress run && npm run report:merge && npm run report:generate",
     "cypress:visual": "cypress run --config-file cypress.visual.config.js",
-    "cypress:visual:update": "cypress run --config-file cypress.visual.config.js --env visualRegression={\"type\":\"base\"}"
+    "cypress:visual:update": "cypress run --config-file cypress.visual.config.js --env visualRegression={\"type\":\"base\"}",
+    "report:merge": "mochawesome-merge 'cypress/reports/mocha/*.json' -o cypress/reports/mochawesome.json",
+    "report:generate": "marge cypress/reports/mochawesome.json --reportDir cypress/reports --inline --reportTitle 'IoT Monitor E2E'",
+    "report:clean": "rm -rf cypress/reports"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "cypress": "^13.6.0",
     "cypress-image-diff-js": "^2.3.0",
+    "mochawesome": "^7.1.4",
+    "mochawesome-merge": "^4.4.1",
+    "mochawesome-report-generator": "^6.3.2",
     "typescript": "^5.3.2",
     "wait-on": "^7.2.0"
   }
