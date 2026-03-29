@@ -1,7 +1,7 @@
 # IoT Monitoring Platform — Test Automation Demo
 
 A full-stack demo showcasing Senior Test Automation Engineer skills:
-**Cypress · TypeScript · IoT event-driven architecture · CI/CD testing · Visual Regression**
+**Cypress · TypeScript · GraphQL · IoT event-driven architecture · CI/CD testing · Visual Regression**
 
 ---
 
@@ -10,12 +10,14 @@ A full-stack demo showcasing Senior Test Automation Engineer skills:
 ```
 sensor simulator
       │
-      ▼  POST /telemetry
+      ▼  GraphQL mutation (postTelemetry)
   Backend API  ──► Alert Processor ──► In-Memory DB
-  (Express/TS)                              │
+  (Express +                                │
+  Apollo Server)                            │
       │                                     │
       ▼ WebSocket push                      ▼
-  Frontend Dashboard (React/TS) ◄─── GET /devices & /alerts
+  Frontend Dashboard ◄──── GraphQL queries (Apollo Client)
+     (React/TS)              devices | alerts | alertConfigs
 ```
 
 ---
@@ -24,17 +26,17 @@ sensor simulator
 
 ```
 iot-monitoring-demo/
-├── backend/                      # Express + TypeScript API
+├── backend/                      # Express + Apollo Server (GraphQL)
 │   └── src/
-│       ├── routes/               # telemetry.ts | devices.ts | alerts.ts
+│       ├── graphql/              # schema.ts | resolvers.ts
 │       ├── services/             # database.ts | alertProcessor.ts | websocket.ts
-│       ├── middleware/           # validate.ts
 │       ├── types/                # index.ts (shared types)
 │       └── __tests__/            # Jest unit tests
 │
 ├── frontend/                     # React + TypeScript (Vite)
 │   └── src/
-│       ├── api/                  # client.ts (typed fetch wrapper)
+│       ├── api/                  # client.ts (Apollo Client setup)
+│       ├── graphql/              # queries.ts (GET_DEVICES, GET_ALERTS, mutations)
 │       ├── components/           # DeviceList | AlertList | NavBar
 │       ├── hooks/                # useWebSocket.ts
 │       ├── pages/                # Login | Dashboard | AlertConfig
@@ -49,7 +51,7 @@ iot-monitoring-demo/
 ├── cypress/                      # Cypress E2E suite
 │   ├── e2e/
 │   │   ├── dashboard.cy.ts       # Login + device list tests
-│   │   ├── alerts.cy.ts          # Alert lifecycle + API contract tests
+│   │   ├── alerts.cy.ts          # Alert lifecycle + GraphQL contract tests
 │   │   └── visual.cy.ts          # Visual regression tests
 │   ├── fixtures/
 │   │   ├── telemetry.json        # Normal, breach, and invalid payloads
@@ -58,7 +60,7 @@ iot-monitoring-demo/
 │   ├── snapshots/                # Baseline PNGs (committed to git)
 │   │   └── __diff_output__/      # Diff images on failure (gitignored)
 │   └── support/
-│       ├── commands.ts           # Custom commands: login, postTelemetry, compareSnapshot, etc.
+│       ├── commands.ts           # Custom commands: login, postTelemetry, clearAlerts, etc.
 │       └── e2e.ts
 │
 ├── cypress.config.ts             # Main Cypress config (E2E + regression)
@@ -74,19 +76,14 @@ iot-monitoring-demo/
 ### 1. Install Dependencies
 
 ```bash
-# Root (Cypress + visual regression tools)
-npm install
+# Install all workspaces at once
+npm run install:all
 
-# Backend
+# Or individually:
+npm install                        # Root (Cypress + tooling)
 cd backend && npm install
-
-# Frontend
 cd frontend && npm install
-
-# Simulator
 cd simulator && npm install
-
-# Performance tests
 cd performance && npm install
 ```
 
@@ -95,8 +92,9 @@ cd performance && npm install
 ```bash
 cd backend
 npm run dev
-# API running at http://localhost:3001
-# WebSocket at ws://localhost:3001/ws
+# GraphQL API at http://localhost:3001/graphql
+# WebSocket  at ws://localhost:3001/ws
+# Health     at http://localhost:3001/health
 ```
 
 ### 3. Start the Frontend
@@ -119,34 +117,61 @@ cd simulator && npm run start:spike
 
 ---
 
-## API Reference
+## GraphQL API
 
-| Method | Endpoint                      | Description                      |
-|--------|-------------------------------|----------------------------------|
-| POST   | `/telemetry`                  | Ingest sensor telemetry data     |
-| GET    | `/telemetry`                  | Retrieve recent telemetry log    |
-| GET    | `/devices`                    | List all registered devices      |
-| GET    | `/devices/:id`                | Get single device                |
-| GET    | `/alerts`                     | Get active alerts                |
-| POST   | `/alerts/:id/acknowledge`     | Acknowledge an alert             |
-| POST   | `/alerts/config`              | Set alert threshold for a device |
-| GET    | `/alerts/config`              | List all alert configurations    |
-| GET    | `/health`                     | Health check                     |
+All data access goes through a single endpoint: `POST http://localhost:3001/graphql`
 
-### Example: POST /telemetry
+### Queries
 
-```bash
-curl -X POST http://localhost:3001/telemetry \
-  -H "Content-Type: application/json" \
-  -d '{"deviceId":"sensor-001","temperature":42,"timestamp":"2026-01-01T12:00:00Z"}'
+```graphql
+# List all registered devices
+query { devices { id name location type lastSeen lastTemperature status } }
+
+# Get single device
+query { device(id: "sensor-001") { id name status lastTemperature } }
+
+# Get active alerts (pass includeAll: true to include acknowledged)
+query { alerts { id deviceId deviceName type message temperature threshold timestamp acknowledged } }
+
+# Get alert config for a device
+query { alertConfig(deviceId: "sensor-001") { temperatureThreshold minTemperatureThreshold enabled } }
+
+# List all alert configs
+query { alertConfigs { deviceId temperatureThreshold minTemperatureThreshold enabled } }
+
+# Recent telemetry log
+query { telemetryLog { deviceId temperature timestamp } }
 ```
 
-### Example: POST /alerts/config
+### Mutations
+
+```graphql
+# Ingest sensor telemetry
+mutation {
+  postTelemetry(deviceId: "sensor-001", temperature: 42, timestamp: "2026-01-01T12:00:00Z") {
+    success alertTriggered alert { id message }
+  }
+}
+
+# Set alert threshold for a device
+mutation {
+  setAlertConfig(deviceId: "sensor-001", temperatureThreshold: 35, minTemperatureThreshold: -2, enabled: true) {
+    success config { deviceId temperatureThreshold }
+  }
+}
+
+# Acknowledge an alert
+mutation {
+  acknowledgeAlert(id: "alert-id-here") { success message }
+}
+```
+
+### Example: curl
 
 ```bash
-curl -X POST http://localhost:3001/alerts/config \
+curl -X POST http://localhost:3001/graphql \
   -H "Content-Type: application/json" \
-  -d '{"deviceId":"sensor-001","temperatureThreshold":35}'
+  -d '{"query":"mutation { postTelemetry(deviceId: \"sensor-001\", temperature: 42) { success alertTriggered } }"}'
 ```
 
 ---
@@ -157,6 +182,9 @@ curl -X POST http://localhost:3001/alerts/config \
 cd backend
 npm test              # All tests with coverage
 npm run test:unit     # Unit tests only
+
+# Or from root:
+npm run test:backend
 ```
 
 ---
@@ -167,33 +195,43 @@ npm run test:unit     # Unit tests only
 # Interactive mode (Cypress UI)
 npm run cypress:open
 
-# Smoke tests
+# Smoke tests (@smoke tag)
 npm run cypress:smoke
 
-# Full regression suite
+# Full regression suite (@regression tag)
 npm run cypress:regression
 
 # All E2E specs
 npm run cypress:all
 ```
 
+### Test Tags
+
+| Tag           | Description                              |
+|---------------|------------------------------------------|
+| `@smoke`      | Core happy-path tests — run on every PR  |
+| `@regression` | Full coverage — run pre-release          |
+| `@visual`     | Visual regression — separate config      |
+
 ### Custom Cypress Commands
 
 ```typescript
 cy.login()                                       // UI login flow
 cy.loginViaSession()                             // Cached session login (faster)
-cy.postTelemetry({ deviceId, temperature })      // POST /telemetry via API
-cy.setAlertThreshold(deviceId, threshold)        // POST /alerts/config via API
-cy.clearAlerts()                                 // Acknowledge all active alerts
-cy.getActiveAlerts()                             // GET /alerts via cy.request
+cy.postTelemetry({ deviceId, temperature })      // GraphQL postTelemetry mutation
+cy.setAlertThreshold(deviceId, threshold)        // GraphQL setAlertConfig mutation
+cy.clearAlerts()                                 // Acknowledge all active alerts via GraphQL
+cy.getActiveAlerts()                             // GraphQL alerts query via cy.request
 cy.compareSnapshot(name, threshold)              // Visual regression snapshot
 ```
+
+All GraphQL commands post to `Cypress.env('API_URL') + '/graphql'`. Override via `CYPRESS_API_URL` in CI.
 
 ---
 
 ## Visual Regression Tests
 
-Uses [cypress-image-diff-js](https://github.com/uktrade/cypress-image-diff) to capture and compare screenshots pixel-by-pixel.
+Uses [cypress-image-diff-js](https://github.com/uktrade/cypress-image-diff) for pixel-by-pixel screenshot comparison.
 
 Visual tests run with a **separate config** (`cypress.visual.config.js`) to isolate the plugin from the main Cypress setup.
 
@@ -214,28 +252,26 @@ Later runs  → screenshot taken → compared pixel-by-pixel to baseline
               diff ≤ 3%? → PASS
 ```
 
-The **3% threshold** accounts for sub-pixel font rendering differences across machines and OS versions.
+The **3% threshold** accounts for sub-pixel font rendering differences across OS versions.
 
 ### What is visually tested
 
-| Snapshot                 | What it catches                          |
-|--------------------------|------------------------------------------|
-| `login-page`             | Layout shift, missing elements           |
-| `login-page-error`       | Error state styling regression           |
-| `dashboard-no-alerts`    | Full dashboard layout                    |
-| `stats-bar`              | Stats bar rendering                      |
-| `device-list`            | Device card grid layout                  |
-| `dashboard-with-alerts`  | Alert badge and alert list appearance    |
-| `alert-list-item`        | Alert card styling                       |
-| `device-card-online`     | Green status color coding                |
-| `device-card-critical`   | Red status color coding                  |
-| `device-card-warning`    | Amber status color coding                |
-| `alert-config-page`      | Form and table layout                    |
-| `alert-config-table`     | Config table rows                        |
+| Snapshot                | What it catches                         |
+|-------------------------|-----------------------------------------|
+| `login-page`            | Layout shift, missing elements          |
+| `login-page-error`      | Error state styling regression          |
+| `dashboard-no-alerts`   | Full dashboard layout                   |
+| `stats-bar`             | Stats bar rendering                     |
+| `device-list`           | Device card grid layout                 |
+| `dashboard-with-alerts` | Alert badge and alert list appearance   |
+| `alert-list-item`       | Alert card styling                      |
+| `device-card-online`    | Green status color coding               |
+| `device-card-critical`  | Red status color coding                 |
+| `device-card-warning`   | Amber status color coding               |
+| `alert-config-page`     | Form and table layout                   |
+| `alert-config-table`    | Config table rows                       |
 
 ### Updating baselines
-
-After an intentional UI change, regenerate the baselines and commit the new PNGs:
 
 ```bash
 npm run cypress:visual:update
@@ -243,7 +279,7 @@ git add cypress/snapshots/
 git commit -m "chore: update visual regression baselines"
 ```
 
-Diff images in `cypress/snapshots/__diff_output__/` are gitignored — they are uploaded as CI artifacts only on failure.
+Diff images in `cypress/snapshots/__diff_output__/` are gitignored — uploaded as CI artifacts only on failure.
 
 ---
 
@@ -252,16 +288,10 @@ Diff images in `cypress/snapshots/__diff_output__/` are gitignored — they are 
 ```bash
 cd performance && npm install
 
-# Default: 1000 requests, concurrency 10
-npm test
+npm test               # Default: 1000 requests, concurrency 10
+npm run test:light     # 100 requests
+npm run test:heavy     # 5000 requests, concurrency 50
 
-# Light: 100 requests
-npm run test:light
-
-# Heavy: 5000 requests, concurrency 50
-npm run test:heavy
-
-# Custom
 npx ts-node load-test.ts --count=2000 --concurrency=20
 ```
 
@@ -291,20 +321,22 @@ Push / PR
     │
     ├── backend-tests      (Jest unit tests + coverage upload)
     │
-    ├── cypress-smoke      (dashboard.cy.ts + alerts.cy.ts)
+    ├── cypress-smoke      (dashboard.cy.ts + alerts.cy.ts @smoke)
+    │                       uploads screenshots on failure
     │
     ├── cypress-visual     (visual.cy.ts via cypress.visual.config.js)
     │                       uploads diff images as artifact on failure
     │
     └── cypress-regression (dashboard.cy.ts + alerts.cy.ts, 2× parallel shards)
+                            uploads JSON results per shard as artifact
 ```
 
 See `.github/workflows/ci.yml` for the full pipeline definition.
 
 ### Notes on Cypress config split
 
-The main `cypress.config.ts` handles all E2E and regression specs.
-`cypress.visual.config.js` is a plain CommonJS file used exclusively for visual tests — this isolates the `cypress-image-diff-js` plugin, which requires CJS `require()` to load correctly and must receive both `on` and `config` in `setupNodeEvents`.
+`cypress.config.ts` handles all E2E and regression specs.
+`cypress.visual.config.js` is a plain CommonJS file used exclusively for visual tests — this isolates the `cypress-image-diff-js` plugin, which requires CJS `require()` to load correctly.
 
 ---
 
@@ -319,25 +351,28 @@ The main `cypress.config.ts` handles all E2E and regression specs.
 
 ## WebSocket Live Updates
 
-The dashboard connects to `ws://localhost:3001/ws` and receives:
+The dashboard connects to `ws://localhost:3001/ws` and receives push events — no polling required.
 
-| Event            | Payload | Description                      |
-|------------------|---------|----------------------------------|
-| `device_updated` | Device  | Fired on every telemetry receive |
-| `alert_created`  | Alert   | Fired when threshold is breached |
-| `connected`      | —       | Sent on WS handshake             |
+| Event            | Payload | Trigger                           |
+|------------------|---------|-----------------------------------|
+| `connected`      | —       | Sent on WS handshake              |
+| `device_updated` | Device  | Fired on every telemetry received |
+| `alert_created`  | Alert   | Fired when threshold is breached  |
+
+On receiving `device_updated` or `alert_created`, the dashboard calls Apollo's `refetch()` to re-query GraphQL and refresh the UI.
 
 ---
 
 ## Key Testing Patterns Demonstrated
 
-- **`cy.intercept()`** — Stub API responses to isolate UI tests from backend state
-- **`cy.request()`** — API contract testing without the UI
-- **`cy.wait()`** — Wait for intercepted network requests to complete
+- **`cy.intercept()`** — Stub GraphQL responses (`POST /api/graphql`) to isolate UI from backend state
+- **`cy.request()`** — GraphQL contract testing without the UI
+- **`cy.wait('@alias')`** — Wait for intercepted requests to resolve (never `cy.wait(number)`)
 - **`cy.session()`** — Cache login state across tests for speed
 - **`cy.compareSnapshot()`** — Pixel-by-pixel visual regression with diff output
-- **Custom Commands** — Reusable `login`, `postTelemetry`, `clearAlerts`, `compareSnapshot`
-- **Fixtures** — Centralized deterministic test data for both E2E and visual tests
+- **Custom Commands** — Reusable `login`, `postTelemetry`, `setAlertThreshold`, `clearAlerts`
+- **Fixtures** — Centralized deterministic test data for E2E and visual tests
 - **Separate Cypress configs** — Isolate plugin concerns between E2E and visual suites
 - **Parallel execution** — Matrix strategy in GitHub Actions for regression sharding
+- **GraphQL intercepts** — Operation-level stubbing via `req.body.operationName`
 - **API + UI testing** — Both layers covered in the same suite
