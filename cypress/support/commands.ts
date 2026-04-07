@@ -8,17 +8,31 @@ const API_URL = Cypress.env('API_URL') as string;
 // ─── GraphQL helper ───────────────────────────────────────────────────────────
 
 function gql(query: string, variables?: Record<string, unknown>) {
+  const token = Cypress.env('authToken') as string | undefined;
   return cy.request({
     method: 'POST',
     url: `${API_URL}/graphql`,
     body: { query, variables },
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 }
+
+Cypress.Commands.add('gql', gql);
 
 // ─── Authentication ──────────────────────────────────────────────────────────
 
 Cypress.Commands.add('login', (username = 'admin', password = 'admin123') => {
+  cy.request({
+    method: 'POST',
+    url: `${API_URL}/auth/login`,
+    body: { username, password },
+    headers: { 'Content-Type': 'application/json' },
+  }).then((res) => {
+    Cypress.env('authToken', (res.body as { token: string }).token);
+  });
   cy.visit('/');
   cy.get('[data-test-id="login-username"]').clear().type(username);
   cy.get('[data-test-id="login-password"]').clear().type(password);
@@ -33,6 +47,16 @@ Cypress.Commands.add('loginViaSession', (username = 'admin', password = 'admin12
     cy.get('[data-test-id="login-password"]').type(password);
     cy.get('[data-test-id="login-submit"]').click();
     cy.get('[data-test-id="dashboard-page"]').should('be.visible');
+  });
+  // Always fetch a fresh JWT for direct API calls — session may restore browser
+  // state but Cypress.env is not persisted across session cache restores.
+  cy.request({
+    method: 'POST',
+    url: `${API_URL}/auth/login`,
+    body: { username, password },
+    headers: { 'Content-Type': 'application/json' },
+  }).then((res) => {
+    Cypress.env('authToken', (res.body as { token: string }).token);
   });
 });
 
@@ -98,13 +122,14 @@ Cypress.Commands.add('clearAlerts', () => {
 declare global {
   namespace Cypress {
     interface Chainable {
+      gql(query: string, variables?: Record<string, unknown>): Chainable<Cypress.Response<unknown>>;
       login(username?: string, password?: string): Chainable<void>;
       loginViaSession(username?: string, password?: string): Chainable<void>;
       postTelemetry(payload: { deviceId: string; temperature: number; timestamp?: string }): Chainable<Cypress.Response<unknown>>;
       setAlertThreshold(deviceId: string, threshold: number): Chainable<Cypress.Response<unknown>>;
       clearAlerts(): Chainable<void>;
       getActiveAlerts(): Chainable<Cypress.Response<unknown>>;
-      compareSnapshot(name: string, errorThreshold?: number): Chainable<void>;
+      compareSnapshot(options: { name: string; testThreshold?: number }): Chainable<void>;
     }
   }
 }

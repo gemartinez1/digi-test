@@ -34,6 +34,10 @@ export interface AlertConfig {
   enabled: boolean;
 }
 
+export interface GraphQLContext {
+  user: import('../services/auth').AuthUser | null;
+}
+
 export interface WebSocketMessage {
   type: 'alert_created' | 'device_updated' | 'telemetry_received';
   payload: Alert | Device | TelemetryPayload;

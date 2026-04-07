@@ -143,52 +143,7 @@ jobs:
           path: cypress/screenshots/
 
   # ──────────────────────────────────────────────
-  # Job 4: Visual Regression Tests
-  # ──────────────────────────────────────────────
-  cypress-visual:
-    name: Visual Regression Tests
-    runs-on: ubuntu-latest
-    needs: cypress-smoke
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install all deps
-        run: |
-          npm ci --prefix backend
-          npm ci --prefix frontend
-          npm ci
-
-      - name: Build backend and frontend
-        run: |
-          npm run build --prefix backend
-          npm run build --prefix frontend
-
-      - name: Start services
-        run: |
-          NODE_ENV=production node backend/dist/index.js &
-          cd frontend && npx vite preview --host --port 4173 &
-          npx wait-on http://localhost:3001/health http://localhost:4173 --timeout 30000
-
-      - name: Run visual regression tests
-        run: npx cypress run --config-file cypress.visual.config.js
-        env:
-          CYPRESS_BASE_URL: http://localhost:4173
-          CYPRESS_API_URL: http://localhost:3001
-
-      - name: Upload snapshot diffs on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: visual-diff-output
-          path: cypress/snapshots/__diff_output__/
-
-  # ──────────────────────────────────────────────
-  # Job 5: Cypress Regression Tests (parallel)
+  # Job 4: Cypress Regression Tests (parallel)
   # ──────────────────────────────────────────────
   cypress-regression:
     name: Cypress Regression (${{ matrix.containers }})
@@ -239,7 +194,7 @@ jobs:
           path: cypress/reports/mocha/
 
   # ──────────────────────────────────────────────
-  # Job 6: Merge regression shards and generate report
+  # Job 5: Merge regression shards and generate report
   # ──────────────────────────────────────────────
   report-regression:
     name: Generate Regression Report

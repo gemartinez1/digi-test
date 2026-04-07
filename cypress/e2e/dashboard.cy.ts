@@ -67,13 +67,9 @@ describe('Dashboard — Device List', { tags: ['@smoke'] }, () => {
   });
 
   it('loads devices from the GraphQL API', () => {
-    cy.request({
-      method: 'POST',
-      url: `${Cypress.env('API_URL') as string}/graphql`,
-      body: { query: '{ devices { id name status } }' },
-    }).then((res) => {
+    cy.gql('{ devices { id name status } }').then((res) => {
       expect(res.status).to.eq(200);
-      expect(res.body.data.devices).to.be.an('array');
+      expect((res.body as { data: { devices: unknown[] } }).data.devices).to.be.an('array');
     });
   });
 });
