@@ -6,5 +6,9 @@ cypress/videos/
 cypress/results/
 cypress/reports/
 cypress/snapshots/__diff_output__/
+cypress/snapshots/comparison/
+cypress/downloads/
+cypress-image-diff-html-report/
+cypress-image-diff-screenshots/
 .env
 *.log

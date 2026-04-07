@@ -1,12 +1,19 @@
 import request from 'supertest';
 import { app, apolloReady } from '../index';
 import { db } from '../services/database';
+import { signToken } from '../services/auth';
+
+const ADMIN_TOKEN = signToken({ id: '1', username: 'admin', role: 'admin' });
 
 beforeAll(async () => { await apolloReady; });
 beforeEach(() => db.reset());
 
 const GQL = (query: string) =>
-  request(app).post('/graphql').send({ query }).set('Content-Type', 'application/json');
+  request(app)
+    .post('/graphql')
+    .send({ query })
+    .set('Content-Type', 'application/json')
+    .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
 
 describe('alerts query', () => {
   it('returns empty array when no alerts exist', async () => {

@@ -4,24 +4,29 @@ interface Props {
   onLogin: (user: string) => void;
 }
 
-// Fake login — credentials are for demo purposes only
-const DEMO_USERS: Record<string, string> = {
-  admin: 'admin123',
-  engineer: 'test1234',
-};
-
 export function Login({ onLogin }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (DEMO_USERS[username] === password) {
-      setError('');
+    setError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        setError('Invalid credentials');
+        return;
+      }
+      const data = await res.json() as { token: string };
+      sessionStorage.setItem('iot-token', data.token);
       onLogin(username);
-    } else {
-      setError('Invalid credentials. Try admin / admin123');
+    } catch {
+      setError('Unable to connect to server');
     }
   };
 
