@@ -5,9 +5,10 @@ interface Props {
   user: string;
   onLogout: () => void;
   wsConnected: boolean;
+  isAdmin: boolean;
 }
 
-export function NavBar({ user, onLogout, wsConnected }: Props) {
+export function NavBar({ user, onLogout, wsConnected, isAdmin }: Props) {
   return (
     <nav data-test-id="navbar" style={styles.nav}>
       <div style={styles.brand}>
@@ -22,13 +23,15 @@ export function NavBar({ user, onLogout, wsConnected }: Props) {
         >
           Dashboard
         </NavLink>
-        <NavLink
-          to="/alerts/config"
-          data-test-id="nav-alert-config"
-          style={({ isActive }) => ({ ...styles.link, ...(isActive ? styles.activeLink : {}) })}
-        >
-          Alert Config
-        </NavLink>
+        {isAdmin && (
+          <NavLink
+            to="/alerts/config"
+            data-test-id="nav-alert-config"
+            style={({ isActive }) => ({ ...styles.link, ...(isActive ? styles.activeLink : {}) })}
+          >
+            Alert Config
+          </NavLink>
+        )}
       </div>
       <div style={styles.right}>
         <span

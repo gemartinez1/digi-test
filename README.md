@@ -41,7 +41,7 @@ iot-monitoring-demo/
 │       ├── graphql/              # schema.ts | resolvers.ts
 │       ├── services/             # database.ts | alertProcessor.ts | websocket.ts | auth.ts
 │       ├── types/                # index.ts (shared types + GraphQLContext)
-│       └── __tests__/            # Jest unit tests
+│       └── __tests__/            # Jest integration tests
 │
 ├── frontend/                     # React + TypeScript (Vite)
 │   └── src/
@@ -60,8 +60,13 @@ iot-monitoring-demo/
 │
 ├── cypress/                      # Cypress E2E suite
 │   ├── e2e/
-│   │   ├── dashboard.cy.ts       # Login + device list tests
-│   │   └── alerts.cy.ts          # Alert lifecycle + GraphQL contract tests
+│   │   ├── ui/                   # UI layer tests (require frontend + backend)
+│   │   │   ├── dashboard.cy.ts   # Login + device list + real-time dashboard
+│   │   │   ├── alerts.cy.ts      # Alert config page + alert lifecycle
+│   │   │   └── viewer.cy.ts      # Viewer role UI access control
+│   │   └── api/                  # API layer tests (backend only)
+│   │       ├── contracts.cy.ts   # GraphQL schema shape + input validation + threshold logic
+│   │       └── viewer.cy.ts      # Viewer permitted + forbidden operations
 │   ├── fixtures/
 │   │   ├── telemetry.json        # Normal, breach, and invalid payloads
 │   │   ├── devices.json          # Stub data for cy.intercept()
@@ -70,7 +75,7 @@ iot-monitoring-demo/
 │       ├── commands.ts           # Custom commands: login, gql, postTelemetry, clearAlerts, etc.
 │       └── e2e.ts
 │
-├── cypress.config.ts             # Main Cypress config (E2E + regression)
+├── cypress.config.ts             # Main Cypress config
 ├── .github/workflows/ci.yml      # GitHub Actions CI pipeline
 └── package.json
 ```
@@ -143,10 +148,13 @@ curl -X POST http://localhost:3001/graphql \
 
 ### Roles
 
-| Role    | Permissions                                      |
-|---------|--------------------------------------------------|
-| `admin` | All queries + all mutations (incl. setAlertConfig) |
-| `viewer`| All queries + postTelemetry + acknowledgeAlert   |
+| Role     | Permissions                                        |
+|----------|----------------------------------------------------|
+| `admin`  | All queries + all mutations (incl. setAlertConfig) |
+| `viewer` | All queries + postTelemetry + acknowledgeAlert     |
+
+Role is enforced at the GraphQL resolver level via `requireAuth()` and `requireAdmin()` guards.
+The frontend additionally hides the Alert Config page and nav link for viewer accounts.
 
 ### Credentials
 
@@ -202,7 +210,6 @@ mutation {
 ```bash
 cd backend
 npm test              # All tests with coverage
-npm run test:unit     # Unit tests only
 
 # Or from root:
 npm run test:backend
@@ -226,6 +233,15 @@ npm run cypress:regression
 npm run cypress:all
 ```
 
+### Test Structure
+
+Tests are split into two layers under `cypress/e2e/`:
+
+| Folder | What it tests | Requires |
+|--------|--------------|----------|
+| `ui/`  | Rendered pages, user interactions, nav visibility, route guards | Frontend + Backend |
+| `api/` | GraphQL schema shape, input validation, RBAC enforcement, threshold logic | Backend only |
+
 ### Test Tags
 
 | Tag           | Description                             |
@@ -237,11 +253,11 @@ npm run cypress:all
 
 | Command | Description |
 |---|---|
-| `cy.login()` | UI login flow — fetches JWT and stores it |
-| `cy.loginViaSession()` | Cached session login + fresh JWT (faster in suites) |
-| `cy.gql(query, variables?)` | Authenticated GraphQL request — auth token applied automatically |
+| `cy.login()` | Full UI login flow — fetches JWT and stores it in `Cypress.env` |
+| `cy.loginViaSession()` | Cached session login + fresh JWT fetch (faster across suites) |
+| `cy.gql(query, variables?)` | Authenticated GraphQL request — JWT applied automatically |
 | `cy.postTelemetry({ deviceId, temperature })` | GraphQL postTelemetry mutation |
-| `cy.setAlertThreshold(deviceId, threshold)` | GraphQL setAlertConfig mutation |
+| `cy.setAlertThreshold(deviceId, threshold)` | GraphQL setAlertConfig mutation (admin token required) |
 | `cy.clearAlerts()` | Acknowledge all active alerts via GraphQL |
 | `cy.getActiveAlerts()` | GraphQL alerts query |
 
@@ -268,12 +284,14 @@ Push / PR
     │
     ├── lint               (backend ESLint + frontend ESLint)
     │
-    ├── backend-tests      (Jest unit tests + coverage upload)
+    ├── backend-tests      (Jest integration tests + coverage upload)
     │
-    ├── cypress-smoke      (dashboard.cy.ts + alerts.cy.ts @smoke)
+    ├── cypress-smoke      (ui/ + api/ @smoke — all specs)
     │                       uploads screenshots on failure
     │
-    └── cypress-regression (dashboard.cy.ts + alerts.cy.ts, 2× parallel shards)
+    └── cypress-regression (2× parallel shards)
+                            shard 1 → ui/*.cy.ts
+                            shard 2 → api/*.cy.ts
                             merges mocha JSON shards → HTML report artifact
 ```
 
@@ -284,16 +302,17 @@ See `.github/workflows/ci.yml` for the full pipeline definition.
 ## Key Testing Patterns Demonstrated
 
 - **JWT auth in Cypress** — `cy.login()` fetches a real token; `cy.gql()` attaches it automatically to all GraphQL requests
-- **`cy.intercept()` for GraphQL** — Stub responses by `operationName` (`POST /api/graphql`) to isolate UI from backend state
-- **`cy.gql()`** — Single command for authenticated GraphQL requests, eliminates manual header boilerplate
-- **`cy.session()`** — Cache login state across tests for speed
+- **Role-based access control tests** — viewer role tested at both UI layer (nav hidden, route blocked) and API layer (FORBIDDEN error code asserted)
+- **UI vs API test separation** — `cypress/e2e/ui/` for rendered interactions, `cypress/e2e/api/` for pure GraphQL contract and permission tests
+- **`cy.intercept()` for GraphQL** — stub responses by `operationName` (`POST /api/graphql`) to isolate UI from backend state
+- **`cy.gql()`** — single command for authenticated GraphQL requests, eliminates manual header boilerplate
+- **`cy.session()`** — cache login state across tests for speed; JWT re-fetched after restore since `Cypress.env` is not persisted
 - **`cy.request()`** — GraphQL contract testing without the UI
-- **`cy.wait('@alias')`** — Wait for intercepted requests to resolve (never `cy.wait(number)`)
-- **Custom Commands** — Reusable `login`, `postTelemetry`, `setAlertThreshold`, `clearAlerts`
-- **Fixtures** — Centralized deterministic test data (`devices.json`, `alert-configs.json`)
-- **GraphQL intercepts** — Operation-level stubbing via `req.body.operationName`
-- **Parallel execution** — Matrix strategy in GitHub Actions for regression sharding
-- **API + UI testing** — Both layers covered in the same suite
+- **`cy.wait('@alias')`** — wait for intercepted requests to resolve (never `cy.wait(number)`)
+- **Custom commands** — reusable `login`, `postTelemetry`, `setAlertThreshold`, `clearAlerts`
+- **Fixtures** — centralized deterministic test data (`devices.json`, `alert-configs.json`)
+- **Real parallelism** — regression matrix splits UI specs (shard 1) from API specs (shard 2)
+- **Defense in depth** — admin-only operations blocked at resolver level regardless of frontend state
 
 ---
 

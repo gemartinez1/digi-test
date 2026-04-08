@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 
 interface Props {
-  onLogin: (user: string) => void;
+  onLogin: (username: string, role: string) => void;
 }
 
 export function Login({ onLogin }: Props) {
@@ -22,9 +22,9 @@ export function Login({ onLogin }: Props) {
         setError('Invalid credentials');
         return;
       }
-      const data = await res.json() as { token: string };
+      const data = await res.json() as { token: string; user: { role: string } };
       sessionStorage.setItem('iot-token', data.token);
-      onLogin(username);
+      onLogin(username, data.user.role);
     } catch {
       setError('Unable to connect to server');
     }
