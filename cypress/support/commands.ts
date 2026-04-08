@@ -3,15 +3,14 @@
 const compareSnapshotCommand = require('cypress-image-diff-js/command');
 compareSnapshotCommand();
 
-const API_URL = Cypress.env('API_URL') as string;
-
 // ─── GraphQL helper ───────────────────────────────────────────────────────────
 
 function gql(query: string, variables?: Record<string, unknown>) {
+  const apiUrl = Cypress.env('API_URL') as string;
   const token = Cypress.env('authToken') as string | undefined;
   return cy.request({
     method: 'POST',
-    url: `${API_URL}/graphql`,
+    url: `${apiUrl}/graphql`,
     body: { query, variables },
     headers: {
       'Content-Type': 'application/json',
@@ -27,7 +26,7 @@ Cypress.Commands.add('gql', gql);
 Cypress.Commands.add('login', (username = 'admin', password = 'admin123') => {
   cy.request({
     method: 'POST',
-    url: `${API_URL}/auth/login`,
+    url: `${Cypress.env('API_URL') as string}/auth/login`,
     body: { username, password },
     headers: { 'Content-Type': 'application/json' },
   }).then((res) => {
@@ -52,7 +51,7 @@ Cypress.Commands.add('loginViaSession', (username = 'admin', password = 'admin12
   // state but Cypress.env is not persisted across session cache restores.
   cy.request({
     method: 'POST',
-    url: `${API_URL}/auth/login`,
+    url: `${Cypress.env('API_URL') as string}/auth/login`,
     body: { username, password },
     headers: { 'Content-Type': 'application/json' },
   }).then((res) => {
@@ -106,7 +105,7 @@ Cypress.Commands.add('getActiveAlerts', () => {
 Cypress.Commands.add('clearAlerts', () => {
   gql(`query { alerts { id } }`).then((res) => {
     const alerts = (res.body.data.alerts as Array<{ id: string }>);
-    alerts.forEach((alert) => {
+    cy.wrap(alerts).each((alert: { id: string }) => {
       gql(
         `mutation AcknowledgeAlert($id: ID!) {
           acknowledgeAlert(id: $id) { success }
@@ -119,8 +118,13 @@ Cypress.Commands.add('clearAlerts', () => {
 
 // ─── Type declarations ────────────────────────────────────────────────────────
 
+export {};
+
 declare global {
   namespace Cypress {
+    interface SuiteConfigOverrides {
+      tags?: string | string[];
+    }
     interface Chainable {
       gql(query: string, variables?: Record<string, unknown>): Chainable<Cypress.Response<unknown>>;
       login(username?: string, password?: string): Chainable<void>;

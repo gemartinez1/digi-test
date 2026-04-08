@@ -1,32 +1,39 @@
-import { defineConfig } from 'cypress';
+import { defineConfig } from "cypress";
 
 export default defineConfig({
   e2e: {
-    baseUrl: 'http://localhost:5173',
-    supportFile: 'cypress/support/e2e.ts',
-    specPattern: 'cypress/e2e/!(visual).cy.ts',
+    baseUrl: "http://localhost:5173",
+    supportFile: "cypress/support/e2e.ts",
+    specPattern: "cypress/e2e/{ui,api}/*.cy.ts",
     video: false,
     screenshotOnRunFailure: true,
     defaultCommandTimeout: 8000,
     requestTimeout: 10000,
-    reporter: 'mochawesome',
+    reporter: "mochawesome",
     reporterOptions: {
-      reportDir: 'cypress/reports/mocha',
+      reportDir: "cypress/reports/mocha",
       overwrite: false,
       html: false,
       json: true,
     },
     env: {
-      API_URL: 'http://localhost:3001',
+      API_URL: "http://localhost:3001",
     },
     setupNodeEvents(on, config) {
-      on('task', {
+      on("task", {
         log(message: string) {
           console.log(message);
           return null;
         },
       });
       return config;
+    },
+  },
+
+  component: {
+    devServer: {
+      framework: "react",
+      bundler: "vite",
     },
   },
 });

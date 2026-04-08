@@ -1,8 +1,8 @@
 /**
- * Dashboard E2E Tests
+ * Dashboard UI Tests
  *
- * @smoke — core user journey tests run on every CI commit
- * @regression — deeper coverage run before releases
+ * @smoke — login flow + device list rendering
+ * @regression — real-time dashboard updates via API
  */
 
 describe('Login', { tags: ['@smoke'] }, () => {
@@ -19,19 +19,24 @@ describe('Login', { tags: ['@smoke'] }, () => {
   });
 
   it('shows error for invalid credentials', () => {
+    cy.intercept('POST', '/api/auth/login').as('auth');
     cy.get('[data-test-id="login-username"]').type('wronguser');
     cy.get('[data-test-id="login-password"]').type('wrongpass');
     cy.get('[data-test-id="login-submit"]').click();
-    cy.get('[data-test-id="login-error"]').should('be.visible');
+    cy.wait('@auth').its('response.statusCode').should('eq', 401);
+    cy.get('[data-test-id="login-error"]').should('be.visible').should('have.text', 'Invalid credentials');
     cy.get('[data-test-id="dashboard-page"]').should('not.exist');
   });
 
   it('logs in successfully with valid credentials', () => {
+    cy.intercept('POST', '/api/auth/login').as('auth');
     cy.get('[data-test-id="login-username"]').type('admin');
     cy.get('[data-test-id="login-password"]').type('admin123');
     cy.get('[data-test-id="login-submit"]').click();
+    cy.wait('@auth').its('response.statusCode').should('eq', 200);
     cy.get('[data-test-id="dashboard-page"]').should('be.visible');
     cy.get('[data-test-id="current-user"]').should('contain', 'admin');
+    cy.get('[data-test-id="logout-button"]').should('be.visible');
   });
 
   it('logs out and returns to login page', () => {
@@ -64,13 +69,6 @@ describe('Dashboard — Device List', { tags: ['@smoke'] }, () => {
     cy.get('[data-test-id="stats-bar"]').should('be.visible');
     cy.get('[data-test-id="stat-total-devices"]').should('be.visible');
     cy.get('[data-test-id="stat-active-alerts"]').should('be.visible');
-  });
-
-  it('loads devices from the GraphQL API', () => {
-    cy.gql('{ devices { id name status } }').then((res) => {
-      expect(res.status).to.eq(200);
-      expect((res.body as { data: { devices: unknown[] } }).data.devices).to.be.an('array');
-    });
   });
 });
 
