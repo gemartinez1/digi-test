@@ -15,7 +15,7 @@ describe('Alert Configuration Page', { tags: ['@smoke'] }, () => {
   });
 
   it('renders the alert config page', () => {
-    cy.get('[data-test-id="alert-config-page"]').should('be.visible');
+    cy.get('[data-test-id="alert-config-page"]', {timeout: 10}).should('be.visible');
     cy.get('[data-test-id="alert-config-form"]').should('exist');
     cy.get('[data-test-id="config-device-id"]').should('be.visible');
     cy.get('[data-test-id="config-temperature-threshold"]').should('be.visible');
