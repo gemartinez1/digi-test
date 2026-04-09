@@ -8,7 +8,7 @@
  * @regression — RBAC enforcement run pre-release
  */
 
-const API_URL = () => Cypress.env('API_URL') as string;
+import { apiUrl as API_URL } from '../../support/utils';
 
 // ─── Helper: fetch an admin token without affecting session state ──────────────
 function fetchAdminToken() {

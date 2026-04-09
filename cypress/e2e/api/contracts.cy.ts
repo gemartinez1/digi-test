@@ -8,7 +8,7 @@
  * @regression — full contract coverage run pre-release
  */
 
-const API_URL = () => Cypress.env('API_URL') as string;
+import { apiUrl as API_URL } from '../../support/utils';
 
 describe('GraphQL Contract — Query Shape', { tags: ['@regression'] }, () => {
   before(() => {
