@@ -3,14 +3,15 @@
 const compareSnapshotCommand = require('cypress-image-diff-js/command');
 compareSnapshotCommand();
 
+import { apiUrl } from './utils';
+
 // ─── GraphQL helper ───────────────────────────────────────────────────────────
 
 function gql(query: string, variables?: Record<string, unknown>) {
-  const apiUrl = Cypress.env('API_URL') as string;
   const token = Cypress.env('authToken') as string | undefined;
   return cy.request({
     method: 'POST',
-    url: `${apiUrl}/graphql`,
+    url: `${apiUrl()}/graphql`,
     body: { query, variables },
     headers: {
       'Content-Type': 'application/json',
@@ -26,7 +27,7 @@ Cypress.Commands.add('gql', gql);
 Cypress.Commands.add('login', (username = 'admin', password = 'admin123') => {
   cy.request({
     method: 'POST',
-    url: `${Cypress.env('API_URL') as string}/auth/login`,
+    url: `${apiUrl()}/auth/login`,
     body: { username, password },
     headers: { 'Content-Type': 'application/json' },
   }).then((res) => {
@@ -51,7 +52,7 @@ Cypress.Commands.add('loginViaSession', (username = 'admin', password = 'admin12
   // state but Cypress.env is not persisted across session cache restores.
   cy.request({
     method: 'POST',
-    url: `${Cypress.env('API_URL') as string}/auth/login`,
+    url: `${apiUrl()}/auth/login`,
     body: { username, password },
     headers: { 'Content-Type': 'application/json' },
   }).then((res) => {
@@ -103,17 +104,17 @@ Cypress.Commands.add('getActiveAlerts', () => {
 });
 
 Cypress.Commands.add('clearAlerts', () => {
-  gql(`query { alerts { id } }`).then((res) => {
+  return gql(`query { alerts { id } }`).then((res) => {
     const alerts = (res.body.data.alerts as Array<{ id: string }>);
-    cy.wrap(alerts).each((alert: { id: string }) => {
-      gql(
+    return cy.wrap(alerts).each((alert: { id: string }) => {
+      return gql(
         `mutation AcknowledgeAlert($id: ID!) {
           acknowledgeAlert(id: $id) { success }
         }`,
         { id: alert.id }
       );
     });
-  });
+  }) as unknown as Cypress.Chainable<void>;
 });
 
 // ─── Type declarations ────────────────────────────────────────────────────────

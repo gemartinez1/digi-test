@@ -81,6 +81,7 @@ describe('Alert Lifecycle — Full Flow', { tags: ['@regression'] }, () => {
     });
     cy.get('[data-test-id="stat-active-alerts"]').invoke('text').should('match', /[1-9]/);
     cy.get('[data-test-id="alert-badge"]').should('be.visible');
+    cy.get(`[data-test-id="device-card-${DEVICE_ID}"]`).should('be.visible')
   });
 
   it('device shows CRITICAL status after breach', () => {

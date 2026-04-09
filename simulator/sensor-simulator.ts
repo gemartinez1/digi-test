@@ -63,7 +63,7 @@ async function sendTelemetry(sensor: SensorConfig, temp: number): Promise<void> 
 
 async function runSimulationCycle(): Promise<void> {
   tick++;
-  const isSpikeTick = SPIKE_MODE && tick % 10 === 0; // spike every ~30s at 3s interval
+  const isSpikeTick = SPIKE_MODE && tick % 10 === 0; // spike every ~30s at 3snr interval
 
   if (isSpikeTick) {
     console.log('\n⚡  INJECTING TEMPERATURE SPIKE...\n');
