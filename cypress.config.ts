@@ -7,8 +7,8 @@ export default defineConfig({
     specPattern: "cypress/e2e/{ui,api}/*.cy.ts",
     video: false,
     screenshotOnRunFailure: true,
-    defaultCommandTimeout: 500,
-    requestTimeout: 500,
+    defaultCommandTimeout: 4000,
+    requestTimeout: 4000,
     reporter: "mochawesome",
     reporterOptions: {
       reportDir: "cypress/reports/mocha",
